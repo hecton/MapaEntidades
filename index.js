@@ -7,12 +7,14 @@ const DOT_TEXT_FONT = 'Arial';
 const canva = {}
 const dots = [
     {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    {x: -50, y: 100, r: DOT_RADIUS},
-    {x: 50, y: 100, r: DOT_RADIUS},
+    {x: -150, y: 250, r: DOT_RADIUS},
+    {x: 150, y: 250, r: DOT_RADIUS},
 ]
-const connections = {
-    0: [1, 2],
-}
+const connections = [
+    { d1: 0, d2: 1, description: 'Pai' },
+    { d1: 0, d2: 2, description: 'Tio' },
+]
+
 const arrowDistance = 3;
 
 const controle = {
@@ -41,16 +43,14 @@ function updateRenderConfig() {
 }
 
 function renderConnections() {
-    for (let dotKey in connections) {
-        for (connection of connections[dotKey]) {
-            renderConncection(dotKey, connection)
-        }
+    for(connection of connections) {
+        renderConncection(connection)
     }
 }
 
-function renderConncection(dotKey, keyConnection) {
-    let dot1 = dots[dotKey]
-    let dot2 = dots[keyConnection]
+function renderConncection(connection) {
+    let dot1 = dots[connection.d1]
+    let dot2 = dots[connection.d2]
 
     if (checkDotColision(dot1, dot2)) {
         // Se os círculos colidirem, não desenhe a linha
@@ -64,10 +64,14 @@ function renderConncection(dotKey, keyConnection) {
     let {x: dx1, y: dy1} = getCircleBorderPositionByAngle(dot1.x, dot1.y, getDotRadius(dot1.r) + arrowDistance, angle1)
     let {x: dx2, y: dy2} = getCircleBorderPositionByAngle(dot2.x, dot2.y, getDotRadius(dot2.r) + arrowDistance, angle2)
 
+    // draw arrow
     let {x: x1, y: y1} = getTelaPosition(dx1, dy1)
     let {x: x2, y: y2} = getTelaPosition(dx2, dy2)
-
     drawArrow(x1, y1, x2, y2)
+
+    // draw text
+    let {x: cx, y: cy} = getCenterOfLine(x1, y1, x2, y2)
+    drawText(connection.description, cx, cy, byScala(DOT_TEXT_SIZE), DOT_TEXT_FONT, DOT_TEXT_COLOR)
 }
 
 function getDotRadius(r) {
@@ -119,6 +123,14 @@ function drawArrow(x1, y1, x2, y2) {
     canva.ctx.fill();
 }
 
+function getCenterOfLine(x1, y1, x2, y2) {
+    return {
+        x: (x1 + x2) / 2,
+        y: (y1 + y2) / 2
+    }
+}
+
+
 function getLength(length) {
     return length * renderConfig.scala
 }
@@ -150,17 +162,17 @@ function byScala(value) {
 
 function drawText(text, x, y, fontSize, fontFamily, color = 'black') {
     // set blackground color
-    let margem = 4;
+    let margem = byScala(4);
+
     let textBox = getTextSize(text, fontSize, fontFamily, margem)
     canva.ctx.fillStyle = 'white'; // Set the background color
-    canva.ctx.fillRect(x - (textBox.width/2), y-textBox.height+margem*2, textBox.width, textBox.height); // Draw the background rectangle
-
-
+    canva.ctx.fillRect(x - (textBox.width/2), y-textBox.height*.75, textBox.width, textBox.height); // Draw the background rectangle
 
     canva.ctx.font = `${fontSize}px ${fontFamily}`; // Set the font size and family
     canva.ctx.fillStyle = color; // Set the text color
     canva.ctx.textAlign = 'center'; // Set the text alignment
     canva.ctx.fillText(text, x, y); // Draw the text at the specified position
+    
 }
 
 function getTelaPosition(x, y) {
@@ -216,7 +228,7 @@ function setEventListeners() {
         mouseUpdate({btn1: true, doubleClick})
     })
     canva.el.addEventListener('mouseup', (e) => {
-        console.log('mouseup')
+        // console.log('mouseup')
         mouseUpdate({btn1: false, doubleClick: false})
     })
     canva.el.addEventListener('mouseleave', (e) => {
@@ -225,7 +237,7 @@ function setEventListeners() {
     canva.el.addEventListener('wheel', (e) => {
         let delta = (Math.sign(e.deltaY)*-1)/10
         updateTela({z: setMinMax(controle.tela.z + delta, 0.4, 4) });
-        console.log('delta', delta, controle.tela.z)
+        // console.log('delta', delta, controle.tela.z)
         e.preventDefault()
     }, false);
 }
@@ -240,7 +252,7 @@ function setMinMax(value, min, max) {
 function updateTela(updateData) {
     controle.tela = { ...controle.tela, ...updateData }
     controle.tela.speed = 1 - (renderConfig.scala / 100)
-    console.log('updateTela', controle.tela.speed, renderConfig.scala)
+    // console.log('updateTela', controle.tela.speed, renderConfig.scala)
     render();
 }
 
@@ -306,7 +318,7 @@ function addRandomDotConnection(dotKey) {
     let qtd = getRandomByRange(1, 3)
 
     for(let i = 0; i < qtd; i++) {
-        let dot = addRangomDot()
+        let dot = addRandomDot()
 
         if (dot != dotKey) {
             addConnection(dotKey, dot)
@@ -320,8 +332,9 @@ function addRandomDotConnection(dotKey) {
 
 
 function organizeConnectionPositions(dotKey) {
-    let dotConnections = connections[dotKey]
-    if (dotConnections == null || !dotConnections.length) return
+    let dotConnections = connections.filter(c => c.d1 == dotKey)
+    
+    if (!dotConnections.length) return
 
     let dx = dots[dotKey].x
     let dy = dots[dotKey].y
@@ -331,9 +344,8 @@ function organizeConnectionPositions(dotKey) {
     let width = (dotConnections.length * (DOT_RADIUS*2)) + ((dotConnections.length - 1) * margemWidth)
     let currentX = dx - (width/2);
 
-    for(key in dotConnections) {
-        let dotKeyConnection = dotConnections[key]
-        let dot = dots[dotKeyConnection]
+    for(connection of dotConnections) {
+        let dot = dots[connection.d2]
         dot.x = currentX+DOT_RADIUS;
         dot.y = dy + margemHeight;
 
@@ -362,21 +374,21 @@ function checkColisionCircleRetangle(x, y, r, x1, y1, w, h) {
 }
 
 
-function addConnection(dotKey, dotKeyConnection) {
+function addConnection(dotKey, dotKeyConnection, type) {
     if (dotKey == dotKeyConnection) return
 
-    if (connections[dotKey] == null) {
-        connections[dotKey] = []
-    }
-
-    connections[dotKey].push(dotKeyConnection)
+    connections.push({
+        d1: dotKey,
+        d2: dotKeyConnection,
+        description: type || 'Parente'
+    })
 }
 
 function getRandomByRange(min, max) {
     return Math.floor(Math.floor(Math.random() * (max - min + 1)) + min)
 }
 
-function addRangomDot() {
+function addRandomDot() {
     let margem = 10;
     let x = getRandomByRange(margem, controle.tela.width-margem)
     let y= getRandomByRange(margem, controle.tela.height-margem)
@@ -410,7 +422,7 @@ function moveDot() {
 
 const t =  {speed: 1}
 function moveTela() {
-    console.log('moveTela', renderConfig.scala, controle.tela.speed, controle.mouse.diff.x, controle.mouse.diff.y)
+    // console.log('moveTela', renderConfig.scala, controle.tela.speed, controle.mouse.diff.x, controle.mouse.diff.y)
     controle.tela.x +=  controle.tela.speed * controle.mouse.diff.x
     controle.tela.y +=  controle.tela.speed * controle.mouse.diff.y
 }
