@@ -1,0 +1,9 @@
+#mapa > #app {
+    background-color: rgb(233, 233, 233);
+    width: calc(100vw - 3px);
+    height: calc(100vh - 4px);
+}
+
+body {
+    margin: 0;
+}
