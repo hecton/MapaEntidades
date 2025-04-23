@@ -20,6 +20,11 @@ const arrowDistance = 3;
 const controle = {
     tela: {},
     dotCatched: null,
+    selectedItens: {
+        dots: [],
+        length: 0,
+    },
+    
     mouse: {
         x: 0, y: 0, btn0: false, btn2: false, doubleClick: false
     },
@@ -40,24 +45,18 @@ function render() {
 }
 
 function renderSelectionArea() {
-    console.log('renderSelectionArea',  controle.mouse.selectionArea)
     if (!controle.mouse.selectionArea) return
 
-
     let {init_x, init_y, end_x, end_y} = controle.mouse.selectionArea
-    let {x: x1, y: y1} = getTelaPosition(init_x, init_y)
-    let {x: x2, y: y2} = getTelaPosition(end_x, end_y)
-    let w = x2 - x1
-    let h = y2 - y1
-    let x = x1 + (w/2)
-    let y = y1 + (h/2)
-    let r = Math.sqrt(w*w + h*h)/2
-    canva.ctx.beginPath()
-    canva.ctx.arc(x, y, r, 0, 2*Math.PI);
-    canva.ctx.strokeStyle = 'red'
-    canva.ctx.lineWidth = 2;
-    canva.ctx.stroke();
-    canva.ctx.closePath()
+
+    let w = end_x - init_x
+    let h = end_y - init_y
+
+    canva.ctx.beginPath(); // Start a new path
+    canva.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Set the fill color to a semi-transparent black
+    canva.ctx.fillRect(init_x, init_y, w, h); // Draw the rectangle
+    canva.ctx.strokeStyle = 'black'; // Set the stroke color to black
+    canva.ctx.strokeRect(init_x, init_y, w, h); // Draw the rectangle outline
 }
 
 function updateRenderConfig() {
@@ -209,7 +208,14 @@ function getTelaPosition(x, y) {
 
 
     return { x: cx, y: cy }
+}
 
+// TODO: validar se está funcionando
+function getMapaPosition(x, y) {
+    let cx = (x - controle.tela.x) / renderConfig.scala - controle.tela.width/2
+    let cy = (y - controle.tela.y) / renderConfig.scala - controle.tela.height/2
+
+    return { x: cx, y: cy }
 }
 
 function getTextSize (text, fontSize, fontFamily, margem = 0) {
@@ -310,16 +316,16 @@ function mouseUpdate(updateData) {
         controle.dotCatched = null
         runSelectionArea();
     }
-    else if (controle.mouse.btn2 && controle.mouse.clickMove) {
+    else if (controle.mouse.btn0 && controle.dotCatched === null) {
+        controle.dotCatched = getDotByPosition(controle.mouse.x, controle.mouse.y);
+    }
+    else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.dotCatched == null) {
         controle.mouse.selectionArea = {
-            init_x: !controle.mouse.old.selectionArea? controle.mouse.selectionArea.x : controle.mouse.x,
-            init_y: !controle.mouse.old.selectionArea? controle.mouse.selectionArea.y : controle.mouse.y,
+            init_x: controle.mouse.selectionArea? controle.mouse.selectionArea.init_x : controle.mouse.x,
+            init_y: controle.mouse.selectionArea? controle.mouse.selectionArea.init_y : controle.mouse.y,
             end_x: controle.mouse.x,
             end_y: controle.mouse.y,
         }
-    }
-    else if (controle.dotCatched === null) {
-        controle.dotCatched = getDotByPosition(controle.mouse.x, controle.mouse.y);
     }
 
 
@@ -334,10 +340,40 @@ function mouseUpdate(updateData) {
 function runSelectionArea() {
     if (!controle.mouse.selectionArea) return;
 
-    controle.mouse.selectionArea = null;
+    let init = getTelaPosition(controle.mouse.selectionArea.init_x, controle.mouse.selectionArea.init_y)
+    let end = getTelaPosition(controle.mouse.selectionArea.end_x, controle.mouse.selectionArea.end_y)
 
-    console.log('runSelectionArea', controle.mouse.selectionArea)
+    let { dots } = getItensInArea(init.x, init.y, end.x, end.y)
+
+    setSelectedItens(dots)
+    controle.mouse.selectionArea = null;
 }
+
+function setSelectedItens(dots) {
+    controle.selectedItens.dots = dots
+    controle.selectedItens.length = dots.length
+}
+
+function getItensInArea(x1, y1, x2, y2) {
+    let dots = getDotsInArea(x1, y1, x2, y2)
+
+    return { dots }
+}
+
+function getDotsInArea(x1, y1, x2, y2) {
+    let dotsInArea = []
+    for(dotKey in dots) {
+        let dot = dots[dotKey]
+        let {x: dx, y: dy} = getTelaPosition(dot.x, dot.y)
+
+        if (checkColisionCircleRetangle(dx, dy, dot.r, x1, y1, x2-x1, y2-y1)) {
+            dotsInArea.push(dotKey)
+        }
+    }
+    return dotsInArea;
+}
+
+
 
 function runControle() {
     // if(!controle.mouse.isMove) {
@@ -359,13 +395,20 @@ function runControle() {
         console.log('show menu')
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove) {
-        if (controle.dotCatched === undefined) {
-            
-        } else {
-            moveDot()
+        if (controle.dotCatched) {
+            if (catchIsInSelectedAred()) {
+                moveSelectionArea();
+            } else {
+                moveDot(controle.dotCatched)
+            }
         }
     }
     render();
+}
+
+function catchIsInSelectedAred() {
+    console.log(controle.selectedItens.dots);
+    return controle.selectedItens.dots.some(dotKey => dotKey == controle.dotCatched) ?? false;
 }
 
 function addRandomDotConnection(dotKey) {
@@ -468,8 +511,8 @@ function checkCircleColision(x1, y1, r1, x2, y2, r2) {
     return distance < (r1 + r2)
 }
 
-function moveDot() {
-    let dot = dots[controle.dotCatched]
+function moveDot(key) {
+    let dot = dots[key]
     dot.x += controle.mouse.diff.x
     dot.y += controle.mouse.diff.y
 }
