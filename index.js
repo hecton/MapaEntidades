@@ -21,7 +21,7 @@ const controle = {
     tela: {},
     dotCatched: null,
     mouse: {
-        x: 0, y: 0, btn1: false, btn2: false, doubleClick: false
+        x: 0, y: 0, btn0: false, btn2: false, doubleClick: false
     },
 }
 const renderConfig = {
@@ -36,6 +36,28 @@ function render() {
     clearCanva()
     renderConnections()
     renderDots();
+    renderSelectionArea()
+}
+
+function renderSelectionArea() {
+    console.log('renderSelectionArea',  controle.mouse.selectionArea)
+    if (!controle.mouse.selectionArea) return
+
+
+    let {init_x, init_y, end_x, end_y} = controle.mouse.selectionArea
+    let {x: x1, y: y1} = getTelaPosition(init_x, init_y)
+    let {x: x2, y: y2} = getTelaPosition(end_x, end_y)
+    let w = x2 - x1
+    let h = y2 - y1
+    let x = x1 + (w/2)
+    let y = y1 + (h/2)
+    let r = Math.sqrt(w*w + h*h)/2
+    canva.ctx.beginPath()
+    canva.ctx.arc(x, y, r, 0, 2*Math.PI);
+    canva.ctx.strokeStyle = 'red'
+    canva.ctx.lineWidth = 2;
+    canva.ctx.stroke();
+    canva.ctx.closePath()
 }
 
 function updateRenderConfig() {
@@ -70,8 +92,10 @@ function renderConncection(connection) {
     drawArrow(x1, y1, x2, y2)
 
     // draw text
+    if(!connection.description) return
+
     let {x: cx, y: cy} = getCenterOfLine(x1, y1, x2, y2)
-    drawText(connection.description, cx, cy, byScala(DOT_TEXT_SIZE), DOT_TEXT_FONT, DOT_TEXT_COLOR)
+    drawCenterText(connection.description, cx, cy, byScala(DOT_TEXT_SIZE), DOT_TEXT_FONT, DOT_TEXT_COLOR)
 }
 
 function getDotRadius(r) {
@@ -152,7 +176,7 @@ function renderDot(dot) {
     drawCircle(x, y, r);
 
     if (dot.text) {
-        drawText(dot.text, x, y + r, byScala(DOT_TEXT_SIZE), DOT_TEXT_FONT, DOT_TEXT_COLOR)
+        drawCenterText(dot.text, x, y + r*1.1, byScala(DOT_TEXT_SIZE), DOT_TEXT_FONT, DOT_TEXT_COLOR)
     }
 }
 
@@ -160,19 +184,20 @@ function byScala(value) {
     return value * renderConfig.scala
 }
 
-function drawText(text, x, y, fontSize, fontFamily, color = 'black') {
+
+function drawCenterText(text, x, y, fontSize, fontFamily, color = 'black') {
     // set blackground color
     let margem = byScala(4);
 
     let textBox = getTextSize(text, fontSize, fontFamily, margem)
     canva.ctx.fillStyle = 'white'; // Set the background color
-    canva.ctx.fillRect(x - (textBox.width/2), y-textBox.height*.75, textBox.width, textBox.height); // Draw the background rectangle
+    canva.ctx.fillRect(x - (textBox.width/2), y - (textBox.height/2), textBox.width, textBox.height); // Draw the background rectangle
 
     canva.ctx.font = `${fontSize}px ${fontFamily}`; // Set the font size and family
     canva.ctx.fillStyle = color; // Set the text color
     canva.ctx.textAlign = 'center'; // Set the text alignment
-    canva.ctx.fillText(text, x, y); // Draw the text at the specified position
-    
+    canva.ctx.textBaseLine = 'middle'; // Set the text alignment
+    canva.ctx.fillText(text, x, y+margem); // Draw the text at the specified position
 }
 
 function getTelaPosition(x, y) {
@@ -217,6 +242,8 @@ function setEventListeners() {
     })
     let timeClick = new Date().getTime()
     canva.el.addEventListener('mousedown', (e) => { 
+        let index = `btn${e.button}`
+
         let currentTime = new Date().getTime()
         let doubleClick = false;
         
@@ -225,18 +252,21 @@ function setEventListeners() {
         }
 
         timeClick = currentTime;
-        mouseUpdate({btn1: true, doubleClick})
+        mouseUpdate({[index]: true, doubleClick})
     })
+    canva.el.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+    });
     canva.el.addEventListener('mouseup', (e) => {
-        // console.log('mouseup')
-        mouseUpdate({btn1: false, doubleClick: false})
+        let index = `btn${e.button}`
+        mouseUpdate({[index]: false, doubleClick: false})
     })
     canva.el.addEventListener('mouseleave', (e) => {
-        mouseUpdate({btn1: false, doubleClick: false})
+        mouseUpdate({btn0: false, btn2: false, doubleClick: false})
     });
     canva.el.addEventListener('wheel', (e) => {
         let delta = (Math.sign(e.deltaY)*-1)/10
-        updateTela({z: setMinMax(controle.tela.z + delta, 0.4, 4) });
+        updateTela({z: setMinMax(controle.tela.z + delta, 0.1, 4) });
         // console.log('delta', delta, controle.tela.z)
         e.preventDefault()
     }, false);
@@ -269,19 +299,29 @@ function mouseUpdate(updateData) {
         controle.mouse.y != controle.mouse.old.y
     ) {
         controle.mouse.isMove = true
-        controle.mouse.clickMove = controle.mouse.btn1
+        controle.mouse.clickMove = controle.mouse.btn0 || controle.mouse.btn2
     } else {
         controle.mouse.clickMove = false
         controle.mouse.isMove = false
     }
 
     // valida se tá clicando em um círculo
-    if ( !controle.mouse.clickMove) {
+    if ( !controle.mouse.btn0 && !controle.mouse.btn2) {
         controle.dotCatched = null
+        runSelectionArea();
     }
-    if (controle.mouse.btn1 && controle.dotCatched === null) {
+    else if (controle.mouse.btn2 && controle.mouse.clickMove) {
+        controle.mouse.selectionArea = {
+            init_x: !controle.mouse.old.selectionArea? controle.mouse.selectionArea.x : controle.mouse.x,
+            init_y: !controle.mouse.old.selectionArea? controle.mouse.selectionArea.y : controle.mouse.y,
+            end_x: controle.mouse.x,
+            end_y: controle.mouse.y,
+        }
+    }
+    else if (controle.dotCatched === null) {
         controle.dotCatched = getDotByPosition(controle.mouse.x, controle.mouse.y);
     }
+
 
     controle.mouse.diff = {
         x: controle.mouse.x - controle.mouse.old.x,
@@ -291,31 +331,45 @@ function mouseUpdate(updateData) {
     runControle();
 }
 
+function runSelectionArea() {
+    if (!controle.mouse.selectionArea) return;
+
+    controle.mouse.selectionArea = null;
+
+    console.log('runSelectionArea', controle.mouse.selectionArea)
+}
+
 function runControle() {
+    // if(!controle.mouse.isMove) {
+    // console.log(controle.mouse.btn0, controle.mouse.clickMove, controle.dotCatched)
+    // }
+
+
     if(controle.mouse.doubleClick && controle.dotCatched != null) {
         if(!controle.mouse.clickMove) {
             addRandomDotConnection(controle.dotCatched)
         }
-        render();
     }
     // valida se está clicando e segurando.
-    else if (controle.mouse.btn1 && controle.mouse.clickMove) {
-        if (controle.dotCatched === null) {
-            controle.dotCatched = getDotByPosition(controle.mouse.x, controle.mouse.y);
-        }
-
-        if (controle.dotCatched != null) {
-            moveDot()
-        }else {
-            moveTela();
-        }
-        
-        render();
+    else if (controle.mouse.btn2 && controle.mouse.clickMove) {
+        moveTela();
     }
+    else if (controle.mouse.btn2 && !controle.mouse.isMove) {
+        // TODO: tem que validar o tempo do click.
+        console.log('show menu')
+    }
+    else if (controle.mouse.btn0 && controle.mouse.clickMove) {
+        if (controle.dotCatched === undefined) {
+            
+        } else {
+            moveDot()
+        }
+    }
+    render();
 }
 
 function addRandomDotConnection(dotKey) {
-    let qtd = getRandomByRange(1, 3)
+    let qtd = getRandomByRange(100, 300)
 
     for(let i = 0; i < qtd; i++) {
         let dot = addRandomDot()
@@ -338,8 +392,8 @@ function organizeConnectionPositions(dotKey) {
 
     let dx = dots[dotKey].x
     let dy = dots[dotKey].y
-    let margemWidth = 20;
-    let margemHeight = 150;
+    let margemWidth = 80;
+    let margemHeight = 230;
 
     let width = (dotConnections.length * (DOT_RADIUS*2)) + ((dotConnections.length - 1) * margemWidth)
     let currentX = dx - (width/2);
