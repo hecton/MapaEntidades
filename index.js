@@ -9,13 +9,32 @@ const MAX_SCALE = 4;
 const canva = {}
 const dots = [
     {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    // {x: -150, y: 250, r: DOT_RADIUS},
-    // {x: 150, y: 250, r: DOT_RADIUS},
+    {x: -150, y: 250, r: DOT_RADIUS},
+    {x: 150, y: 250, r: DOT_RADIUS},
 ]
 const connections = [
-    // { d1: 0, d2: 1, description: 'Pai' },
-    // { d1: 0, d2: 2, description: 'Tio' },
+    { d1: 0, d2: 1, description: 'Pai' },
+    { d1: 0, d2: 2, description: 'Tio' },
 ]
+const notes = [
+    {
+        x: 200, y: 100, w: 100, h: 100,
+        text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean accumsan dui dolor, eget sollicitudin nisi facilisis ut. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut pellentesque magna in nunc lacinia."
+    }
+]
+// estilos
+DEFAULT_FONT_FAMILY = 'Arial';
+DEFAULT_FONT_SIZE = 10;
+DEFAULT_FONT_COLOR = 'black';
+
+const style = {
+    notes: {
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontSize: DEFAULT_FONT_SIZE,
+        fontColor: DEFAULT_FONT_COLOR,
+        margem: 4
+    }
+}
 
 const arrowDistance = 3;
 
@@ -36,7 +55,7 @@ const renderConfig = {
 }
 
 // COISAS PARA FAZER
-// limpar area de selecao
+// TODO: limpar area de selecao
 
 
 
@@ -47,9 +66,98 @@ function render() {
     updateRenderConfig()
     clearCanva()
     renderConnections()
+    renderNotes();
     renderDots();
     renderSelectionArea()
 }
+
+function renderNotes() {
+    for(note of notes) {
+        renderNote(note)
+    }
+}
+
+function renderNote(note) {
+    let box = getRetangleInTela(note)
+    console.log(box)
+    drawRetangle(box)
+    
+    drawTextInBox(
+        note.text,
+        box,
+        style.notes
+    )
+}
+
+function drawRetangle(retangle, color) {
+    canva.ctx.beginPath(); // Start a new path
+    canva.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Set the fill color to a semi-transparent black
+    canva.ctx.fillRect(retangle.x, retangle.y, retangle.w, retangle.h); // Draw the rectangle
+    canva.ctx.strokeStyle = 'black'; // Set the stroke color to black
+    canva.ctx.strokeRect(retangle.x, retangle.y, retangle.w, retangle.h); // Draw the rectangle outline
+}
+
+function getRetangleInTela(retangle)
+{
+    let result = getTelaPosition(note.x, note.y)
+    result.w = byScala(retangle.w)
+    result.h = byScala(retangle.h)
+
+    return result;
+}
+
+function drawTextInBox(text, box, style) {
+    let words = text.split(' ');
+    let line = '';
+    let lines = [];
+    let margem = byScala(style.margem);
+    let fontSize = byScala(style.fontSize)
+
+    canva.ctx.font = `${fontSize}px ${style.fontFamily}`;
+    let maxWidth = box.w - margem * 2;
+
+    for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        let metrics = canva.ctx.measureText(testLine);
+        let testWidth = metrics.width;
+
+        if (testWidth > maxWidth && n > 0) {
+            lines.push(line);
+            line = words[n] + ' ';
+        } else {
+            line = testLine;
+        }
+    }
+    lines.push(line);
+
+    let lineHeight = style.fontSize + margem;
+    let y = box.y + margem + style.fontSize;
+
+    canva.ctx.fillStyle = style.fontColor;
+    canva.ctx.textAlign = 'left';
+
+    for (let i = 0; i < lines.length; i++) {
+        canva.ctx.fillText(lines[i], box.x + margem, y);
+        y += lineHeight;
+    }
+
+
+
+
+    // // set blackground color
+    // let margem = byScala(style.notes.margem);
+    
+    // let textBox = getTextSize(note.text, style.notes.fontSize, style.notes.fontFamily, margem)
+    // canva.ctx.fillStyle = 'white'; // Set the background color
+    // canva.ctx.fillRect(x - (textBox.width/2), y - (textBox.height/2), textBox.width, textBox.height); // Draw the background rectangle
+    
+    // canva.ctx.font = `${style.notes.fontSize}px ${style.notes.fontFamily}`; // Set the font size and family
+    // canva.ctx.fillStyle = style.notes.fontColor; // Set the text color
+    // canva.ctx.textAlign = 'center'; // Set the text alignment
+    // canva.ctx.textBaseLine = 'middle'; // Set the text alignment
+    // canva.ctx.fillText(note.text, x, y+margem);
+}
+
 
 function renderSelectionArea() {
     if (!controle.mouse.selectionArea) return
@@ -274,7 +382,6 @@ function setEventListeners() {
     });
     canva.el.addEventListener('wheel', (e) => {
         setTelaZoom(e.deltaY)
-        // console.log('delta', delta, controle.tela.z)
         e.preventDefault()
     }, false);
 }
@@ -418,15 +525,23 @@ function runControle() {
         console.log('show menu')
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove) {
+        // TODO: validar esse comportamento no mapa original.
         if (controle.dotCatched) {
             if (catchIsInSelectedAred()) {
                 moveSelectionArea();
             } else {
                 moveDot(controle.dotCatched)
+                setEmptySelectionArea()
             }
+        } else {
+            setEmptySelectionArea()
         }
     }
     render();
+}
+
+function setEmptySelectionArea() {
+    setSelectedItens([])
 }
 
 function moveSelectionArea() {
@@ -436,6 +551,10 @@ function moveSelectionArea() {
 }
 
 function catchIsInSelectedAred() {
+    if (!controle.selectedItens.length) {
+        return false;
+    }
+
     return controle.selectedItens.dots.some(dotKey => dotKey == controle.dotCatched) ?? false;
 }
 
@@ -551,15 +670,8 @@ function moveDot(key) {
 }
 
 function moveTela() {
-    let old = getMapaPosition(controle.mouse.old.x, controle.mouse.old.y)
-    let current = getMapaPosition(controle.mouse.x, controle.mouse.y)
-
-    let dx = current.x - old.x
-    let dy = current.y - old.y
-
-
-    controle.tela.x += dx
-    controle.tela.y += dy
+    controle.tela.x += controle.mouse.diff.x
+    controle.tela.y += controle.mouse.diff.y
 }
 
 function getDotByPosition(x, y) {
