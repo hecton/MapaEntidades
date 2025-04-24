@@ -3,16 +3,18 @@ const DOT_TEXT_MARGE = 20;
 const DOT_TEXT_SIZE = 20;
 const DOT_TEXT_COLOR = 'black';
 const DOT_TEXT_FONT = 'Arial';
+const MIN_SCALE = 0.1
+const MAX_SCALE = 4;
 
 const canva = {}
 const dots = [
     {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    {x: -150, y: 250, r: DOT_RADIUS},
-    {x: 150, y: 250, r: DOT_RADIUS},
+    // {x: -150, y: 250, r: DOT_RADIUS},
+    // {x: 150, y: 250, r: DOT_RADIUS},
 ]
 const connections = [
-    { d1: 0, d2: 1, description: 'Pai' },
-    { d1: 0, d2: 2, description: 'Tio' },
+    // { d1: 0, d2: 1, description: 'Pai' },
+    // { d1: 0, d2: 2, description: 'Tio' },
 ]
 
 const arrowDistance = 3;
@@ -32,6 +34,11 @@ const controle = {
 const renderConfig = {
     scala: 1,
 }
+
+// COISAS PARA FAZER
+// limpar area de selecao
+
+
 
 init();
 render();
@@ -200,22 +207,17 @@ function drawCenterText(text, x, y, fontSize, fontFamily, color = 'black') {
 }
 
 function getTelaPosition(x, y) {
-    let cx = controle.tela.x + x + controle.tela.width/2
-    let cy = controle.tela.y + y + controle.tela.height/2
-
-    cx = cx * renderConfig.scala
-    cy = cy * renderConfig.scala
-
+    let cx = (x*renderConfig.scala)+controle.tela.x+(controle.tela.width/2)
+    let cy = (y*renderConfig.scala)+controle.tela.y+(controle.tela.height/2)
 
     return { x: cx, y: cy }
 }
 
-// TODO: validar se está funcionando
 function getMapaPosition(x, y) {
-    let cx = (x - controle.tela.x) / renderConfig.scala - controle.tela.width/2
-    let cy = (y - controle.tela.y) / renderConfig.scala - controle.tela.height/2
+    let mx = (x - controle.tela.x - (controle.tela.width / 2)) / renderConfig.scala;
+    let my = (y - controle.tela.y - (controle.tela.height / 2)) / renderConfig.scala;
 
-    return { x: cx, y: cy }
+    return { x: mx, y: my };
 }
 
 function getTextSize (text, fontSize, fontFamily, margem = 0) {
@@ -271,11 +273,17 @@ function setEventListeners() {
         mouseUpdate({btn0: false, btn2: false, doubleClick: false})
     });
     canva.el.addEventListener('wheel', (e) => {
-        let delta = (Math.sign(e.deltaY)*-1)/10
-        updateTela({z: setMinMax(controle.tela.z + delta, 0.1, 4) });
+        setTelaZoom(e.deltaY)
         // console.log('delta', delta, controle.tela.z)
         e.preventDefault()
     }, false);
+}
+
+function setTelaZoom(deltaY) {
+    let delta = (Math.sign(deltaY)*-1)/12// TODO: adicionar um configuracao disso
+    let scale = setMinMax(controle.tela.z + delta, MIN_SCALE, MAX_SCALE)
+
+    updateTela({z: scale });
 }
 
 function setMinMax(value, min, max) {
@@ -340,12 +348,12 @@ function mouseUpdate(updateData) {
 function runSelectionArea() {
     if (!controle.mouse.selectionArea) return;
 
-    let init = getTelaPosition(controle.mouse.selectionArea.init_x, controle.mouse.selectionArea.init_y)
-    let end = getTelaPosition(controle.mouse.selectionArea.end_x, controle.mouse.selectionArea.end_y)
-
+    let init = getMapaPosition(controle.mouse.selectionArea.init_x, controle.mouse.selectionArea.init_y)
+    let end = getMapaPosition(controle.mouse.selectionArea.end_x, controle.mouse.selectionArea.end_y)
+    
     let { dots } = getItensInArea(init.x, init.y, end.x, end.y)
-
     setSelectedItens(dots)
+
     controle.mouse.selectionArea = null;
 }
 
@@ -355,18 +363,33 @@ function setSelectedItens(dots) {
 }
 
 function getItensInArea(x1, y1, x2, y2) {
-    let dots = getDotsInArea(x1, y1, x2, y2)
+    let area = this.getRetangleByPositions(x1, y1, x2, y2)
+    let dots = getDotsInArea(area)
 
     return { dots }
 }
 
-function getDotsInArea(x1, y1, x2, y2) {
+function getRetangleByPositions(x1, y1, x2, y2) {
+    let x = Math.min(x1, x2)
+    let y = Math.min(y1, y2)
+
+    return {
+        x, y,
+        w: Math.max(x1, x2) - x,
+        h: Math.max(y1, y2) - y    
+    }
+}
+
+function getLength(p1, p2) {
+    return Math.abs(Math.max(p1, p2) - Math.min(p1, p2));
+}
+
+function getDotsInArea(area) {
     let dotsInArea = []
     for(dotKey in dots) {
         let dot = dots[dotKey]
-        let {x: dx, y: dy} = getTelaPosition(dot.x, dot.y)
 
-        if (checkColisionCircleRetangle(dx, dy, dot.r, x1, y1, x2-x1, y2-y1)) {
+        if (checkColisionCircleRetangle(dot.x, dot.y, dot.r, area.x, area.y,  area.w, area.h)) {
             dotsInArea.push(dotKey)
         }
     }
@@ -376,10 +399,10 @@ function getDotsInArea(x1, y1, x2, y2) {
 
 
 function runControle() {
+    // para testes.
     // if(!controle.mouse.isMove) {
     // console.log(controle.mouse.btn0, controle.mouse.clickMove, controle.dotCatched)
     // }
-
 
     if(controle.mouse.doubleClick && controle.dotCatched != null) {
         if(!controle.mouse.clickMove) {
@@ -406,13 +429,18 @@ function runControle() {
     render();
 }
 
+function moveSelectionArea() {
+    for(dot of controle.selectedItens.dots) {
+        moveDot(dot)
+    }
+}
+
 function catchIsInSelectedAred() {
-    console.log(controle.selectedItens.dots);
     return controle.selectedItens.dots.some(dotKey => dotKey == controle.dotCatched) ?? false;
 }
 
 function addRandomDotConnection(dotKey) {
-    let qtd = getRandomByRange(100, 300)
+    let qtd = getRandomByRange(3,  6)
 
     for(let i = 0; i < qtd; i++) {
         let dot = addRandomDot()
@@ -426,7 +454,6 @@ function addRandomDotConnection(dotKey) {
 
     render()
 }
-
 
 function organizeConnectionPositions(dotKey) {
     let dotConnections = connections.filter(c => c.d1 == dotKey)
@@ -513,15 +540,26 @@ function checkCircleColision(x1, y1, r1, x2, y2, r2) {
 
 function moveDot(key) {
     let dot = dots[key]
-    dot.x += controle.mouse.diff.x
-    dot.y += controle.mouse.diff.y
+    let tela = getTelaPosition(dot.x, dot.y);
+    tela.x += controle.mouse.diff.x;
+    tela.y += controle.mouse.diff.y;
+
+    let {x, y} = getMapaPosition(tela.x, tela.y);
+
+    dot.x = x;
+    dot.y = y;
 }
 
-const t =  {speed: 1}
 function moveTela() {
-    // console.log('moveTela', renderConfig.scala, controle.tela.speed, controle.mouse.diff.x, controle.mouse.diff.y)
-    controle.tela.x +=  controle.tela.speed * controle.mouse.diff.x
-    controle.tela.y +=  controle.tela.speed * controle.mouse.diff.y
+    let old = getMapaPosition(controle.mouse.old.x, controle.mouse.old.y)
+    let current = getMapaPosition(controle.mouse.x, controle.mouse.y)
+
+    let dx = current.x - old.x
+    let dy = current.y - old.y
+
+
+    controle.tela.x += dx
+    controle.tela.y += dy
 }
 
 function getDotByPosition(x, y) {
