@@ -41,8 +41,10 @@ const arrowDistance = 3;
 
 const controle = {
     tela: {},
+    selectedEntity: null,
     selectedItens: {
         dots: [],
+        notes: [],
         length: 0,
     },
     
@@ -67,8 +69,8 @@ function render() {
     updateRenderConfig()
     clearCanva()
     renderConnections()
-    renderNotes();
     renderDots();
+    renderNotes();
     renderSelectionArea()
 }
 
@@ -130,7 +132,7 @@ function setFontStyle(style) {
     let fontSize = byScala(style.fontSize)
     canva.ctx.font = `${fontSize}px ${style.fontFamily}`;
     canva.ctx.fillStyle = style.fontColor;
-    // canva.ctx.textAlign = style.textAlign ?? 'left';
+    canva.ctx.textAlign = style.textAlign ?? 'left';
 }
 
 function drawRetangle(retangle, color) {
@@ -471,18 +473,28 @@ function mouseUpdate(updateData) {
     }
 
     // valida se tá clicando em um círculo
-    if ( !controle.mouse.btn0 && !controle.mouse.btn2) {
-        runSelectionArea();
+    if ( !controle.mouse.btn0) {
+        if(controle.mouse.selectionArea) {
+            console.log('runselection')
+            runSelectionArea();
+        } else if(controle.selectedItens.length == 1) {
+            console.log('aqui');
+            setSelectedItens();
+        }
     }
-    else if (controle.mouse.btn0 && !controle.selectedItens.length) {// TODO: adicionar click rapido.
-        selectItemInPosition(controle.mouse.x, controle.mouse.y)
-    }
-    else if (controle.mouse.btn0 && controle.mouse.clickMove) { // TODO: validar se está usando.
-        controle.mouse.selectionArea = {
-            init_x: controle.mouse.selectionArea? controle.mouse.selectionArea.init_x : controle.mouse.x,
-            init_y: controle.mouse.selectionArea? controle.mouse.selectionArea.init_y : controle.mouse.y,
-            end_x: controle.mouse.x,
-            end_y: controle.mouse.y,
+    else if (controle.mouse.btn0) {// TODO: adicionar click rapido.
+        console.log(controle.selectedItens.length)
+        if(!controle.selectedItens.length && !controle.mouse.selectionArea) {
+            selectItemInPosition(controle.mouse.x, controle.mouse.y)
+        }
+
+        if(!controle.selectedItens.length) {
+            controle.mouse.selectionArea = {
+                init_x: controle.mouse.selectionArea? controle.mouse.selectionArea.init_x : controle.mouse.x,
+                init_y: controle.mouse.selectionArea? controle.mouse.selectionArea.init_y : controle.mouse.y,
+                end_x: controle.mouse.x,
+                end_y: controle.mouse.y,
+            }
         }
     }
 
@@ -510,16 +522,15 @@ function runSelectionArea() {
     controle.mouse.selectionArea = null;
 }
 
-function setSelectedItens(dots = []) {
+function setSelectedItens(dots = [], notes = []) {   
     controle.selectedItens.dots = dots
-    controle.selectedItens.length = dots.length
+    controle.selectedItens.length = dots.length + notes.length
 }
 
 function getItensInArea(x1, y1, x2, y2) {
-    let area = this.getRetangleByPositions(x1, y1, x2, y2)
+    let area = getRetangleByPositions(x1, y1, x2, y2)
     let dots = getDotsInArea(area)
     let notes = []// TODO: implementar
-    console.warning('getItensInArea: não foi implementado ainda a seleção de notas em area.')
 
     return { dots, notes }
 }
@@ -552,11 +563,11 @@ function getDotsInArea(area) {
 }
 
 function getSelectedItem() {
-    if(controle.mouse.selectedItens.dots.length) {
-        return {type: TIPO_DOT, key: controle.mouse.selectedItens.dots[0]}
+    if(controle.selecteditens.dots.length) {
+        return {type: TIPO_DOT, key: controle.selecteditens.dots[0]}
     } 
-    else if(controle.mouse.selectedItens.notes.length) {
-        return {type: TIPO_DOT, key: controle.mouse.selectedItens.notes[0]}
+    else if(controle.selecteditens.notes.length) {
+        return {type: TIPO_DOT, key: controle.selecteditens.notes[0]}
     }
 
     return null;
@@ -565,7 +576,7 @@ function getSelectedItem() {
 
 function runControle() {
     // duplo click com um item selecionado
-    if(controle.mouse.doubleClick && controle.mouse.selectedItens.length == 1 && !controle.mouse.clickMove) {
+    if(controle.mouse.doubleClick && controle.selecteditens.length == 1 && !controle.mouse.clickMove) {
         let item = getSelectedItem();
 
         if(item.type === TIPO_DOT) {
@@ -585,7 +596,7 @@ function runControle() {
     else if (controle.mouse.btn0 && controle.mouse.clickMove) {
         // TODO: validar esse comportamento no mapa original.
         // move o mouse itens.
-        if (controle.mouse.selectedItens.length) {
+        if (controle.selectedItens.length > 0) {
             moveSelectionArea();
         }
     }
@@ -601,8 +612,8 @@ function moveSelectionArea() {
     for(dot of controle.selectedItens.dots) {
         moveDot(dot)
     }
-
-    for(notes of controle.selectedItens.notess) {
+    
+    for(notes of controle.selectedItens.notes) {
         moveNote(notes)
     }
 }
@@ -736,15 +747,24 @@ function moveTela() {
     controle.tela.y += controle.mouse.diff.y
 }
 
+function getEntidadeInPosition(x, y) {
+    let dot = getDotByPosition(x, y);
+    if(dot) return {dot}
+
+    let note = getNoteByPosition(x,y);
+    if (note) return {note}
+
+    return {}
+}
+
 function selectItemInPosition(x, y) {
-    let dot = getDotByPosition(x, y)
-    if (dot) return setSelectedItens([dot])
-        
-    let note = getNoteByPosition(x, y)
-    if (note) return setSelectedItens([], [note])
+    let entidade = getEntidadeInPosition(x, y)
 
     // limpa area de selecão
-    setSelectedItens([], [])
+    setSelectedItens(
+        entidade.dot? [entidade.dot] : [],
+        entidade.note? [entidade.note] : []
+    )
 }
 
 function getDotByPosition(x, y) {
