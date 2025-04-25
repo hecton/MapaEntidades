@@ -16,12 +16,13 @@ const connections = [
     { d1: 0, d2: 1, description: 'Pai' },
     { d1: 0, d2: 2, description: 'Tio' },
 ]
-const notes = [
-    {
-        x: 200, y: 100, w: 100, h: 100,
-        text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean accumsan dui dolor, eget sollicitudin nisi facilisis ut. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut pellentesque magna in nunc lacinia."
-    }
-]
+const notes = []
+
+// tipos
+const TIPO_DOT = 'DOT'
+const TIPO_NOTE = 'NOTE'
+
+
 // estilos
 DEFAULT_FONT_FAMILY = 'Arial';
 DEFAULT_FONT_SIZE = 10;
@@ -40,7 +41,6 @@ const arrowDistance = 3;
 
 const controle = {
     tela: {},
-    dotCatched: null,
     selectedItens: {
         dots: [],
         length: 0,
@@ -58,8 +58,9 @@ const renderConfig = {
 // TODO: limpar area de selecao
 
 
-
+let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dolor';
 init();
+addNote(noteTextTest, 0, 0)
 render();
 
 function render() {
@@ -77,16 +78,59 @@ function renderNotes() {
     }
 }
 
+
+function addNote(text, x, y) {
+    let { lines, w, h} = getTextInfos(text, style.notes);
+    notes.push({
+        lines, x, y,
+        w: w + style.notes.margem*2,
+        h: h + style.notes.margem*2
+    });
+}
+
+function getTextInfos(text, style)
+{
+    let lines = text.split('\n')
+    let w = 0;
+    let h = style.fontSize*lines.length;
+
+    canva.ctx.font = `${style.fontSize}px ${style.fontFamily}`;
+    for(line of lines) {
+        let metrics = canva.ctx.measureText(line);
+
+        if(metrics.width > w) {
+            w = metrics.width
+        }
+    }
+
+    return {lines, w, h}
+}
+
 function renderNote(note) {
     let box = getRetangleInTela(note)
-    console.log(box)
+    let margem = byScala(style.notes.margem)
+    let size = byScala(style.notes.fontSize)
+
     drawRetangle(box)
-    
-    drawTextInBox(
-        note.text,
-        box,
-        style.notes
-    )
+    renderMultLineText(note.lines, box.x+margem, box.y+margem+size, size, style.notes);
+}
+
+function renderMultLineText(lines, x, y, lineHeight, style) {
+    canva.ctx.beginPath();
+    setFontStyle(style);
+
+    let cy = y;
+    for(line of lines) {
+        canva.ctx.fillText(line, x, cy);
+        cy+=lineHeight
+    }
+}
+
+function setFontStyle(style) {
+    let fontSize = byScala(style.fontSize)
+    canva.ctx.font = `${fontSize}px ${style.fontFamily}`;
+    canva.ctx.fillStyle = style.fontColor;
+    // canva.ctx.textAlign = style.textAlign ?? 'left';
 }
 
 function drawRetangle(retangle, color) {
@@ -128,10 +172,10 @@ function drawTextInBox(text, box, style) {
             line = testLine;
         }
     }
-    lines.push(line);
+    lines.push(line)
 
-    let lineHeight = style.fontSize + margem;
-    let y = box.y + margem + style.fontSize;
+    let lineHeight = fontSize + margem;
+    let y = box.y + margem + fontSize;
 
     canva.ctx.fillStyle = style.fontColor;
     canva.ctx.textAlign = 'left';
@@ -428,13 +472,12 @@ function mouseUpdate(updateData) {
 
     // valida se tá clicando em um círculo
     if ( !controle.mouse.btn0 && !controle.mouse.btn2) {
-        controle.dotCatched = null
         runSelectionArea();
     }
-    else if (controle.mouse.btn0 && controle.dotCatched === null) {
-        controle.dotCatched = getDotByPosition(controle.mouse.x, controle.mouse.y);
+    else if (controle.mouse.btn0 && !controle.selectedItens.length) {// TODO: adicionar click rapido.
+        selectItemInPosition(controle.mouse.x, controle.mouse.y)
     }
-    else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.dotCatched == null) {
+    else if (controle.mouse.btn0 && controle.mouse.clickMove) { // TODO: validar se está usando.
         controle.mouse.selectionArea = {
             init_x: controle.mouse.selectionArea? controle.mouse.selectionArea.init_x : controle.mouse.x,
             init_y: controle.mouse.selectionArea? controle.mouse.selectionArea.init_y : controle.mouse.y,
@@ -453,18 +496,21 @@ function mouseUpdate(updateData) {
 }
 
 function runSelectionArea() {
-    if (!controle.mouse.selectionArea) return;
+    // limpa a area de selecao.
+    if (!controle.mouse.selectionArea) return setSelectedItens();
 
+    // coloca na perpectiva do mapa.
     let init = getMapaPosition(controle.mouse.selectionArea.init_x, controle.mouse.selectionArea.init_y)
     let end = getMapaPosition(controle.mouse.selectionArea.end_x, controle.mouse.selectionArea.end_y)
     
-    let { dots } = getItensInArea(init.x, init.y, end.x, end.y)
-    setSelectedItens(dots)
+    // busca os itens dentro mapa.
+    let { dots, notes } = getItensInArea(init.x, init.y, end.x, end.y)
+    setSelectedItens(dots, notes)
 
     controle.mouse.selectionArea = null;
 }
 
-function setSelectedItens(dots) {
+function setSelectedItens(dots = []) {
     controle.selectedItens.dots = dots
     controle.selectedItens.length = dots.length
 }
@@ -472,8 +518,10 @@ function setSelectedItens(dots) {
 function getItensInArea(x1, y1, x2, y2) {
     let area = this.getRetangleByPositions(x1, y1, x2, y2)
     let dots = getDotsInArea(area)
+    let notes = []// TODO: implementar
+    console.warning('getItensInArea: não foi implementado ainda a seleção de notas em area.')
 
-    return { dots }
+    return { dots, notes }
 }
 
 function getRetangleByPositions(x1, y1, x2, y2) {
@@ -503,17 +551,27 @@ function getDotsInArea(area) {
     return dotsInArea;
 }
 
+function getSelectedItem() {
+    if(controle.mouse.selectedItens.dots.length) {
+        return {type: TIPO_DOT, key: controle.mouse.selectedItens.dots[0]}
+    } 
+    else if(controle.mouse.selectedItens.notes.length) {
+        return {type: TIPO_DOT, key: controle.mouse.selectedItens.notes[0]}
+    }
+
+    return null;
+}
 
 
 function runControle() {
-    // para testes.
-    // if(!controle.mouse.isMove) {
-    // console.log(controle.mouse.btn0, controle.mouse.clickMove, controle.dotCatched)
-    // }
+    // duplo click com um item selecionado
+    if(controle.mouse.doubleClick && controle.mouse.selectedItens.length == 1 && !controle.mouse.clickMove) {
+        let item = getSelectedItem();
 
-    if(controle.mouse.doubleClick && controle.dotCatched != null) {
-        if(!controle.mouse.clickMove) {
-            addRandomDotConnection(controle.dotCatched)
+        if(item.type === TIPO_DOT) {
+            addRandomDotConnection(item.key)
+        } else if(item.type === TIPO_DOT) {
+            setToEditNote(item.key)
         }
     }
     // valida se está clicando e segurando.
@@ -526,36 +584,27 @@ function runControle() {
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove) {
         // TODO: validar esse comportamento no mapa original.
-        if (controle.dotCatched) {
-            if (catchIsInSelectedAred()) {
-                moveSelectionArea();
-            } else {
-                moveDot(controle.dotCatched)
-                setEmptySelectionArea()
-            }
-        } else {
-            setEmptySelectionArea()
+        // move o mouse itens.
+        if (controle.mouse.selectedItens.length) {
+            moveSelectionArea();
         }
     }
     render();
 }
 
-function setEmptySelectionArea() {
-    setSelectedItens([])
+function setToEditNote(noteKey) {
+    controle.editingNoteKey = noteKey
 }
+
 
 function moveSelectionArea() {
     for(dot of controle.selectedItens.dots) {
         moveDot(dot)
     }
-}
 
-function catchIsInSelectedAred() {
-    if (!controle.selectedItens.length) {
-        return false;
+    for(notes of controle.selectedItens.notess) {
+        moveNote(notes)
     }
-
-    return controle.selectedItens.dots.some(dotKey => dotKey == controle.dotCatched) ?? false;
 }
 
 function addRandomDotConnection(dotKey) {
@@ -669,21 +718,65 @@ function moveDot(key) {
     dot.y = y;
 }
 
+// TODO: validar para juntar na função de mover o dot.
+function moveNote(key) {
+    let dot = notes[key]
+    let tela = getTelaPosition(dot.x, dot.y);
+    tela.x += controle.mouse.diff.x;
+    tela.y += controle.mouse.diff.y;
+
+    let {x, y} = getMapaPosition(tela.x, tela.y);
+
+    dot.x = x;
+    dot.y = y;
+}
+
 function moveTela() {
     controle.tela.x += controle.mouse.diff.x
     controle.tela.y += controle.mouse.diff.y
 }
 
+function selectItemInPosition(x, y) {
+    let dot = getDotByPosition(x, y)
+    if (dot) return setSelectedItens([dot])
+        
+    let note = getNoteByPosition(x, y)
+    if (note) return setSelectedItens([], [note])
+
+    // limpa area de selecão
+    setSelectedItens([], [])
+}
+
 function getDotByPosition(x, y) {
+    // TODO: testar se está funcionando.
+    let {x: mx, y: my} = getMapaPosition(x, y)
+
     for(dotKey in dots) {
         let dot = dots[dotKey]
-        let {x: dx, y: dy} = getTelaPosition(dot.x, dot.y)
 
-        if (getCircleColision(dx, dy, dot.r, x, y)) {
+        if (getCircleColision(dot.x, dot.y, dot.r, mx, my)) {
             return dotKey;
         }
     }
 }
+
+function getNoteByPosition(x, y) {
+    let {x: mx, y: my} = getMapaPosition(x, y)
+
+    // TODO: validar se é o notekey que temos que usar.
+    for(noteKey in notes) {
+        let note = notes[noteKey]
+
+        if (checkPointRentangleColision(mx, my, note.x, note.y, note.w, note.h)) {
+            return noteKey;
+        }
+    }
+}
+
+function checkPointRentangleColision(x, y, rx, ry, rw, rh) {
+    return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+}
+
 
 function getCircleColision(x, y, r, cx, cy) {
     // Calculate the distance between the center of the circle and the point (cx, cy)
