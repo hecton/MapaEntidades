@@ -41,7 +41,7 @@ const arrowDistance = 3;
 
 const controle = {
     tela: {},
-    selectedEntity: null,
+    clickedEntity: null,
     selectedItens: {
         dots: [],
         notes: [],
@@ -475,15 +475,14 @@ function mouseUpdate(updateData) {
     // valida se tá clicando em um círculo
     if ( !controle.mouse.btn0) {
         if(controle.mouse.selectionArea) {
-            console.log('runselection')
             runSelectionArea();
-        } else if(controle.selectedItens.length == 1) {
-            console.log('aqui');
+        } else if(controle.selectedItens.length == 1) {// TODO: validar isso aqui.
             setSelectedItens();
         }
     }
     else if (controle.mouse.btn0) {// TODO: adicionar click rapido.
-        console.log(controle.selectedItens.length)
+        setClickedEntity()
+
         if(!controle.selectedItens.length && !controle.mouse.selectionArea) {
             selectItemInPosition(controle.mouse.x, controle.mouse.y)
         }
@@ -507,6 +506,10 @@ function mouseUpdate(updateData) {
     runControle();
 }
 
+function setClickedEntity() {
+    controle.clickedEntity = getEntidadeInPosition(controle.mouse.x, controle.mouse.y)
+}
+
 function runSelectionArea() {
     // limpa a area de selecao.
     if (!controle.mouse.selectionArea) return setSelectedItens();
@@ -524,13 +527,14 @@ function runSelectionArea() {
 
 function setSelectedItens(dots = [], notes = []) {   
     controle.selectedItens.dots = dots
+    controle.selectedItens.notes = notes
     controle.selectedItens.length = dots.length + notes.length
 }
 
 function getItensInArea(x1, y1, x2, y2) {
     let area = getRetangleByPositions(x1, y1, x2, y2)
     let dots = getDotsInArea(area)
-    let notes = []// TODO: implementar
+    let notes = getNotesInArea(area)
 
     return { dots, notes }
 }
@@ -560,6 +564,27 @@ function getDotsInArea(area) {
         }
     }
     return dotsInArea;
+}
+
+function getNotesInArea(area) {
+    let notesInArea = []
+    for(noteKey in notes) {
+        let note = notes[noteKey]
+
+        if (checkRetangleColision(area, note)) {
+            notesInArea.push(noteKey)
+        }
+    }
+    return notesInArea;
+}
+
+function checkRetangleColision(t1, t2) {
+    return !(
+        t1.x > t2.x + t2.w ||
+        t1.x + t1.w < t2.x ||
+        t1.y > t2.y + t2.h ||
+        t1.y + t1.h < t2.y
+    );
 }
 
 function getSelectedItem() {
@@ -593,11 +618,11 @@ function runControle() {
         // TODO: tem que validar o tempo do click.
         console.log('show menu')
     }
-    else if (controle.mouse.btn0 && controle.mouse.clickMove) {
+    else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.selectedItens) {
+        moveSelectionArea();
         // TODO: validar esse comportamento no mapa original.
         // move o mouse itens.
         if (controle.selectedItens.length > 0) {
-            moveSelectionArea();
         }
     }
     render();
@@ -754,22 +779,19 @@ function getEntidadeInPosition(x, y) {
     let note = getNoteByPosition(x,y);
     if (note) return {note}
 
-    return {}
+    return null
 }
 
 function selectItemInPosition(x, y) {
-    let entidade = getEntidadeInPosition(x, y)
-
-    // limpa area de selecão
     setSelectedItens(
-        entidade.dot? [entidade.dot] : [],
-        entidade.note? [entidade.note] : []
+        controle.clickedEntity?.dot? [entidade.dot] : [],
+        controle.clickedEntity?.note? [entidade.note] : []
     )
 }
 
 function getDotByPosition(x, y) {
     // TODO: testar se está funcionando.
-    let {x: mx, y: my} = getMapaPosition(x, y)
+    let {x: mx, y: my} = getMapaPosition(x, y)// TODO: optimizar
 
     for(dotKey in dots) {
         let dot = dots[dotKey]
@@ -781,7 +803,7 @@ function getDotByPosition(x, y) {
 }
 
 function getNoteByPosition(x, y) {
-    let {x: mx, y: my} = getMapaPosition(x, y)
+    let {x: mx, y: my} = getMapaPosition(x, y)// TODO: optimizar
 
     // TODO: validar se é o notekey que temos que usar.
     for(noteKey in notes) {
