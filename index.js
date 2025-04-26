@@ -79,8 +79,10 @@ function render() {
 }
 
 function renderNotes() {
-    for(note of notes) {
-        renderNote(note)
+    let keyEdit = controle.noteToEdit?.key ?? null;
+    
+    for(noteKey in notes) {
+        renderNote(notes[noteKey], noteKey === keyEdit )
     }
 }
 
@@ -113,23 +115,39 @@ function getTextInfos(text, style)
     return {lines, w, h}
 }
 
-function renderNote(note) {
+function                        renderNote(note, edit = false) {
     let box = getRetangleInTela(note)
     let margem = byScala(style.notes.margem)
     let size = byScala(style.notes.fontSize)
 
     drawRetangle(box)
-    renderMultLineText(note.text ? note.lines : [NOTE_EMPTY_MESSAGE], box.x+margem, box.y+margem+size, size, style.notes);
+    renderMultLineText(
+        note.text ? note.lines : [NOTE_EMPTY_MESSAGE],
+        box.x+margem,
+        box.y+margem+size,
+        size,
+        style.notes,
+        edit? controle.noteToEdit : null
+    );
 }
 
-function renderMultLineText(lines, x, y, lineHeight, style) {
+function renderMultLineText(lines, x, y, lineHeight, style, toEdit) {
     canva.ctx.beginPath();
     setFontStyle(style);
 
     let cy = y;
-    for(line of lines) {
+    for(lineKey in lines) {
+        let line = lines[lineKey]
         canva.ctx.fillText(line, x, cy);
+        if(toEdit?.cursor_line == lineKey) {
+            console.log(toEdit)
+            canva.ctx.fillStyle = 'red';
+            canva.ctx.fillRect(x + toEdit.cursor_w, cy - lineHeight + 2, 2, lineHeight - 4);
+        }
+
+
         cy+=lineHeight
+
     }
 }
 
@@ -150,7 +168,7 @@ function drawRetangle(retangle, color) {
 
 function getRetangleInTela(retangle)
 {
-    let result = getTelaPosition(note.x, note.y)
+    let result = getTelaPosition(retangle.x, retangle.y)
     result.w = byScala(retangle.w)
     result.h = byScala(retangle.h)
 
@@ -437,17 +455,19 @@ function setEventListeners() {
     }, false);
     document.addEventListener('keydown', (e) => {
         if(controle.noteToEdit) {
-            editNoteText(controle.noteToEdit.key, e)
+            editNoteText(e)
         }
     })
 }
 
-function editNoteText(noteKey, keydownEvent) {
-    if (!notes[noteKey]) return;
+function editNoteText(keydownEvent) {
+    if (!notes[controle.noteToEdit.key]) return;
+
     
-    let note = notes[noteKey]
-    let text = updateTextByKeydownEvent(note.text, keydownEvent);
+    let note = notes[controle.noteToEdit.key]
+    let {text, edit} = updateTextByKeydownEvent(note.text, keydownEvent, controle.noteToEdit);
     note.text = text;
+    controle.noteToEdit = edit;
     
     let { lines, w, h } = getTextInfos(note.text.length ? note.text : NOTE_EMPTY_MESSAGE, style.notes);
     console.log(lines, w, h)
@@ -455,23 +475,37 @@ function editNoteText(noteKey, keydownEvent) {
     note.w = w + style.notes.margem * 2;
     note.h = h + style.notes.margem * 2;
     
-    notes[noteKey] = note
+    notes[controle.noteToEdit.key] = note
+    setCursorPosition();
     render();
+
 }
 
-function updateTextByKeydownEvent(text, keydownEvent) {
+function setCursorPosition() {
+    let note = notes[controle.noteToEdit.key]
+    let p = controle.noteToEdit.position
+    let partText = note.text.slice(p)
+    let lines = partText.split('\n');
+    let qtd = lines.length;
+    let metrics = canva.ctx.measureText(lines.pop);
+    controle.noteToEdit.cursor_w = metrics.width
+    controle.noteToEdit.cursor_line = qtd;
+}
+
+
+function updateTextByKeydownEvent(text, keydownEvent, edit) {
     let newText = text
     if (keydownEvent.key === 'Backspace') {
         if (newText.length > 0) {
             newText = newText.slice(0, -1);
+            edit.position --
         }
     } else if (keydownEvent.key === 'Enter') {
         newText += '\n';
     } else if (keydownEvent.key.length === 1) {
         newText += keydownEvent.key;
     }
-    console.log(text, keydownEvent.key)
-    return newText;
+    return {text: newText, edit};
 }
 
 
@@ -526,6 +560,10 @@ function mouseUpdate(updateData) {
     else if (controle.mouse.btn0) {// TODO: adicionar click rapido.
         controle.noteToEdit = null;
         setClickedEntity()
+
+        if (!controle.clickedEntity) {
+            setSelectedItens();
+        }
 
         if(!controle.selectedItens.size && !controle.mouse.selectionArea) {
             setClickedEntityOnSelectedItens()
