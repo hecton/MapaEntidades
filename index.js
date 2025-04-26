@@ -22,6 +22,9 @@ const notes = []
 const TIPO_DOT = 'DOT'
 const TIPO_NOTE = 'NOTE'
 
+// configurações de notas
+const NOTE_EMPTY_MESSAGE = 'Digite aqui...'
+
 
 // estilos
 DEFAULT_FONT_FAMILY = 'Arial';
@@ -40,12 +43,13 @@ const style = {
 const arrowDistance = 3;
 
 const controle = {
+    noteToEdit: false,
     tela: {},
     clickedEntity: null,
     selectedItens: {
         dots: [],
         notes: [],
-        length: 0,
+        size: 0,
     },
     
     mouse: {
@@ -82,9 +86,10 @@ function renderNotes() {
 
 
 function addNote(text, x, y) {
-    let { lines, w, h} = getTextInfos(text, style.notes);
+    let { lines, w, h} = getTextInfos(text ?? NOTE_EMPTY_MESSAGE, style.notes);
     notes.push({
         lines, x, y,
+        text,
         w: w + style.notes.margem*2,
         h: h + style.notes.margem*2
     });
@@ -114,7 +119,7 @@ function renderNote(note) {
     let size = byScala(style.notes.fontSize)
 
     drawRetangle(box)
-    renderMultLineText(note.lines, box.x+margem, box.y+margem+size, size, style.notes);
+    renderMultLineText(note.text ? note.lines : [NOTE_EMPTY_MESSAGE], box.x+margem, box.y+margem+size, size, style.notes);
 }
 
 function renderMultLineText(lines, x, y, lineHeight, style) {
@@ -430,7 +435,45 @@ function setEventListeners() {
         setTelaZoom(e.deltaY)
         e.preventDefault()
     }, false);
+    document.addEventListener('keydown', (e) => {
+        if(controle.noteToEdit) {
+            editNoteText(controle.noteToEdit.key, e)
+        }
+    })
 }
+
+function editNoteText(noteKey, keydownEvent) {
+    if (!notes[noteKey]) return;
+    
+    let note = notes[noteKey]
+    let text = updateTextByKeydownEvent(note.text, keydownEvent);
+    note.text = text;
+    
+    let { lines, w, h } = getTextInfos(note.text.length ? note.text : NOTE_EMPTY_MESSAGE, style.notes);
+    console.log(lines, w, h)
+    note.lines = lines;
+    note.w = w + style.notes.margem * 2;
+    note.h = h + style.notes.margem * 2;
+    
+    notes[noteKey] = note
+    render();
+}
+
+function updateTextByKeydownEvent(text, keydownEvent) {
+    let newText = text
+    if (keydownEvent.key === 'Backspace') {
+        if (newText.length > 0) {
+            newText = newText.slice(0, -1);
+        }
+    } else if (keydownEvent.key === 'Enter') {
+        newText += '\n';
+    } else if (keydownEvent.key.length === 1) {
+        newText += keydownEvent.key;
+    }
+    console.log(text, keydownEvent.key)
+    return newText;
+}
+
 
 function setTelaZoom(deltaY) {
     let delta = (Math.sign(deltaY)*-1)/12// TODO: adicionar um configuracao disso
@@ -476,18 +519,19 @@ function mouseUpdate(updateData) {
     if ( !controle.mouse.btn0) {
         if(controle.mouse.selectionArea) {
             runSelectionArea();
-        } else if(controle.selectedItens.length == 1) {// TODO: validar isso aqui.
+        } else if(controle.selectedItens.size == 1) {// TODO: validar isso aqui.
             setSelectedItens();
         }
     }
     else if (controle.mouse.btn0) {// TODO: adicionar click rapido.
+        controle.noteToEdit = null;
         setClickedEntity()
 
-        if(!controle.selectedItens.length && !controle.mouse.selectionArea) {
-            selectItemInPosition(controle.mouse.x, controle.mouse.y)
+        if(!controle.selectedItens.size && !controle.mouse.selectionArea) {
+            setClickedEntityOnSelectedItens()
         }
 
-        if(!controle.selectedItens.length) {
+        if(!controle.selectedItens.size) {
             controle.mouse.selectionArea = {
                 init_x: controle.mouse.selectionArea? controle.mouse.selectionArea.init_x : controle.mouse.x,
                 init_y: controle.mouse.selectionArea? controle.mouse.selectionArea.init_y : controle.mouse.y,
@@ -511,6 +555,7 @@ function setClickedEntity() {
 }
 
 function runSelectionArea() {
+    // console.log('runSelectionArea')
     // limpa a area de selecao.
     if (!controle.mouse.selectionArea) return setSelectedItens();
 
@@ -528,7 +573,8 @@ function runSelectionArea() {
 function setSelectedItens(dots = [], notes = []) {   
     controle.selectedItens.dots = dots
     controle.selectedItens.notes = notes
-    controle.selectedItens.length = dots.length + notes.length
+    controle.selectedItens.size = dots.length + notes.length
+    // console.log('setSelectedItens', ''+controle.selectedItens.size)
 }
 
 function getItensInArea(x1, y1, x2, y2) {
@@ -588,11 +634,12 @@ function checkRetangleColision(t1, t2) {
 }
 
 function getSelectedItem() {
-    if(controle.selecteditens.dots.length) {
-        return {type: TIPO_DOT, key: controle.selecteditens.dots[0]}
+    let selecteds = {...controle.selectedItens}
+    if(selecteds.dots.length) {
+        return {type: TIPO_DOT, key: selecteds.dots[0]}
     } 
-    else if(controle.selecteditens.notes.length) {
-        return {type: TIPO_DOT, key: controle.selecteditens.notes[0]}
+    else if(selecteds.notes.length) {
+        return {type: TIPO_NOTE, key: selecteds.notes[0]}
     }
 
     return null;
@@ -601,12 +648,13 @@ function getSelectedItem() {
 
 function runControle() {
     // duplo click com um item selecionado
-    if(controle.mouse.doubleClick && controle.selecteditens.length == 1 && !controle.mouse.clickMove) {
+    let size = controle.selectedItens?.size;
+    if(controle.mouse.doubleClick && size == 1 && !controle.mouse.clickMove) {
         let item = getSelectedItem();
 
         if(item.type === TIPO_DOT) {
             addRandomDotConnection(item.key)
-        } else if(item.type === TIPO_DOT) {
+        } else if(item.type === TIPO_NOTE) {
             setToEditNote(item.key)
         }
     }
@@ -620,26 +668,26 @@ function runControle() {
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.selectedItens) {
         moveSelectionArea();
-        // TODO: validar esse comportamento no mapa original.
-        // move o mouse itens.
-        if (controle.selectedItens.length > 0) {
-        }
     }
     render();
 }
 
-function setToEditNote(noteKey) {
-    controle.editingNoteKey = noteKey
+function setToEditNote(key) {
+    let note = notes[key]
+    controle.noteToEdit = {
+        position: note.text.length,
+        key,
+    }
 }
 
 
 function moveSelectionArea() {
-    for(dot of controle.selectedItens.dots) {
-        moveDot(dot)
+    for(dotList of controle.selectedItens.dots) {
+        moveDot(dotList)
     }
     
-    for(notes of controle.selectedItens.notes) {
-        moveNote(notes)
+    for(noteList of controle.selectedItens.notes) {
+        moveNote(noteList)
     }
 }
 
@@ -782,10 +830,10 @@ function getEntidadeInPosition(x, y) {
     return null
 }
 
-function selectItemInPosition(x, y) {
+function setClickedEntityOnSelectedItens() {
     setSelectedItens(
-        controle.clickedEntity?.dot? [entidade.dot] : [],
-        controle.clickedEntity?.note? [entidade.note] : []
+        controle.clickedEntity?.dot? [controle.clickedEntity.dot] : [],
+        controle.clickedEntity?.note? [controle.clickedEntity.note] : []
     )
 }
 
