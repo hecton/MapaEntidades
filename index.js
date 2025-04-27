@@ -8,15 +8,17 @@ const MAX_SCALE = 4;
 
 const canva = {}
 const dots = [
-    {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    {x: -150, y: 250, r: DOT_RADIUS},
-    {x: 150, y: 250, r: DOT_RADIUS},
+    // {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
+    // {x: -150, y: 250, r: DOT_RADIUS},
+    // {x: 150, y: 250, r: DOT_RADIUS},
 ]
 const connections = [
-    { d1: 0, d2: 1, description: 'Pai' },
-    { d1: 0, d2: 2, description: 'Tio' },
+    // { d1: 0, d2: 1, description: 'Pai' },
+    // { d1: 0, d2: 2, description: 'Tio' },
 ]
 const notes = []
+
+const INITIAL_ZOOM_POSITION = 2.5;
 
 // tipos
 const TIPO_DOT = 'DOT'
@@ -57,16 +59,16 @@ const controle = {
     },
 }
 const renderConfig = {
-    scala: 1,
+    scala: INITIAL_ZOOM_POSITION,
 }
 
 // COISAS PARA FAZER
 // TODO: limpar area de selecao
 
 
-let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dolor';
+let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dol\nor';
 init();
-addNote(noteTextTest, 0, 0)
+addNote(noteTextTest, -100, -30)
 render();
 
 function render() {
@@ -88,18 +90,18 @@ function renderNotes() {
 
 
 function addNote(text, x, y) {
-    let { lines, w, h} = getTextInfos(text ?? NOTE_EMPTY_MESSAGE, style.notes);
+    let lines = text.slice('\n') 
+    let { w, h} = getTextInfos(text? lines : [NOTE_EMPTY_MESSAGE], style.notes);
+
     notes.push({
         lines, x, y,
-        text,
         w: w + style.notes.margem*2,
         h: h + style.notes.margem*2
     });
 }
 
-function getTextInfos(text, style)
+function getTextInfos(lines, style)
 {
-    let lines = text.split('\n')
     let w = 0;
     let h = style.fontSize*lines.length;
 
@@ -112,17 +114,17 @@ function getTextInfos(text, style)
         }
     }
 
-    return {lines, w, h}
+    return {w, h}
 }
 
-function                        renderNote(note, edit = false) {
+function renderNote(note, edit = false) {
     let box = getRetangleInTela(note)
     let margem = byScala(style.notes.margem)
     let size = byScala(style.notes.fontSize)
 
     drawRetangle(box)
     renderMultLineText(
-        note.text ? note.lines : [NOTE_EMPTY_MESSAGE],
+        (note.lines.length + note.lines[0].length) ? note.lines : [NOTE_EMPTY_MESSAGE],
         box.x+margem,
         box.y+margem+size,
         size,
@@ -135,24 +137,28 @@ function renderMultLineText(lines, x, y, lineHeight, style, toEdit) {
     canva.ctx.beginPath();
     setFontStyle(style);
 
+    console.log('multile render', toEdit)
+
     let cy = y;
     for(lineKey in lines) {
         let line = lines[lineKey]
         canva.ctx.fillText(line, x, cy);
-        if(toEdit?.cursor_line == lineKey) {
-            console.log(toEdit)
-            canva.ctx.fillStyle = 'red';
-            canva.ctx.fillRect(x + toEdit.cursor_w, cy - lineHeight + 2, 2, lineHeight - 4);
-        }
+        if(toEdit?.line_key == lineKey) {
+            let {width} = canva.ctx.measureText(line.slice(0, toEdit.caracter_key))
+            console.log(line.slice(0, toEdit.caracter_key), width)
 
+            canva.ctx.fillStyle = 'red';
+            canva.ctx.fillRect(x + width, cy - lineHeight + (lineHeight*.1), 2, lineHeight);
+            canva.ctx.fillStyle = style.fontColor;
+        }
 
         cy+=lineHeight
 
     }
 }
 
-function setFontStyle(style) {
-    let fontSize = byScala(style.fontSize)
+function setFontStyle(style, fontSize = null) {
+    fontSize = fontSize ?? byScala(style.fontSize)
     canva.ctx.font = `${fontSize}px ${style.fontFamily}`;
     canva.ctx.fillStyle = style.fontColor;
     canva.ctx.textAlign = style.textAlign ?? 'left';
@@ -463,50 +469,104 @@ function setEventListeners() {
 function editNoteText(keydownEvent) {
     if (!notes[controle.noteToEdit.key]) return;
 
-    
     let note = notes[controle.noteToEdit.key]
-    let {text, edit} = updateTextByKeydownEvent(note.text, keydownEvent, controle.noteToEdit);
-    note.text = text;
+    let {lines, edit} = updateTextByKeydownEvent(note.lines, keydownEvent, controle.noteToEdit);
+    note.lines = lines;
     controle.noteToEdit = edit;
+
+    // console.log(1, controle.noteToEdit);
     
-    let { lines, w, h } = getTextInfos(note.text.length ? note.text : NOTE_EMPTY_MESSAGE, style.notes);
-    console.log(lines, w, h)
+    let { w, h } = getTextInfos(note.lines.length + note.lines[0].length == 1? note.lines : [NOTE_EMPTY_MESSAGE], style.notes);
     note.lines = lines;
     note.w = w + style.notes.margem * 2;
     note.h = h + style.notes.margem * 2;
     
     notes[controle.noteToEdit.key] = note
-    setCursorPosition();
+    // console.log(1, controle.noteToEdit);
     render();
 
 }
 
-function setCursorPosition() {
-    let note = notes[controle.noteToEdit.key]
-    let p = controle.noteToEdit.position
-    let partText = note.text.slice(p)
-    let lines = partText.split('\n');
-    let qtd = lines.length;
-    let metrics = canva.ctx.measureText(lines.pop);
-    controle.noteToEdit.cursor_w = metrics.width
-    controle.noteToEdit.cursor_line = qtd;
-}
+function updateTextByKeydownEvent(lines, keydownEvent, edit) {
+    let text_part = lines[edit.line_key].slice(0, edit.caracter_key)
+    let text_end = lines[edit.line_key].slice(edit.caracter_key)
 
 
-function updateTextByKeydownEvent(text, keydownEvent, edit) {
-    let newText = text
     if (keydownEvent.key === 'Backspace') {
-        if (newText.length > 0) {
-            newText = newText.slice(0, -1);
-            edit.position --
+        if(text_part.length == 0) {
+            let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
+            edit.line_key = line
+            edit.caracter_key = caracter
         }
+
+        newText = newText.slice(0, -1);   
     } else if (keydownEvent.key === 'Enter') {
         newText += '\n';
+        edit.line_key++
     } else if (keydownEvent.key.length === 1) {
         newText += keydownEvent.key;
+        edit.caracter_key ++
     }
-    return {text: newText, edit};
+    if (keydownEvent.key === 'ArrowLeft') {
+        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
+        edit.line_key = line
+        edit.caracter_key = caracter
+    } else if (keydownEvent.key === 'ArrowRight') {
+        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, 1)
+        edit.line_key = line
+        edit.caracter_key = caracter
+    } else if (keydownEvent.key === 'ArrowUp') {
+        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, -1, 0)
+        edit.line_key = line
+        edit.caracter_key = caracter
+    } else if (keydownEvent.key === 'ArrowDown') {
+        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 1, 0)
+        edit.line_key = line
+        edit.caracter_key = caracter
+    }
+
+    return {lines, edit};
 }
+
+function computLinePosition(lines, key_line, key_caracter, diff_line = 0, diff_caracter = 0) {
+    key_caracter += diff_caracter
+
+    if (key_caracter < 0 && key_line > 0) {
+        key_line --
+        key_caracter = lines[key_line].length
+    } else if (key_caracter > lines[key_line].length) {
+        if(lines.length-1 > key_line) {
+            key_caracter = 0
+            key_line++
+        } else {
+            key_caracter += (diff_caracter*-1)
+        }
+    }
+
+    key_line += diff_line
+
+    if(key_line == lines.length) {
+        key_line--
+    } else if(key_line < 0) {
+        key_line=0
+    }
+
+    if(key_caracter > lines[key_line].length) {
+        key_caracter = lines[key_line].length
+    }
+
+    return {line: key_line, caracter: key_caracter }
+}
+
+function calculateDiff(current, diff, min, max) {
+    let value = current - diff
+    if(value < 0) {
+        return [
+
+        ]
+    }
+}
+
 
 
 function setTelaZoom(deltaY) {
@@ -712,10 +772,14 @@ function runControle() {
 
 function setToEditNote(key) {
     let note = notes[key]
+    let lines = note.text.split('\n')
     controle.noteToEdit = {
-        position: note.text.length,
         key,
+        caracter_key: lines[lines.length-1].length,
+        line_key: lines.length-1
     }
+
+    console.log(controle.noteToEdit)
 }
 
 
@@ -925,7 +989,7 @@ function setTela() {
         y: 0,
         cx: 0 - canva.width/2,
         cy: 0 - canva.height/2,
-        z: 1,
+        z: INITIAL_ZOOM_POSITION,
         speed: 1,
     }
     
