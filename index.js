@@ -90,7 +90,7 @@ function renderNotes() {
 
 
 function addNote(text, x, y) {
-    let lines = text.slice('\n') 
+    let lines = text.split('\n')
     let { w, h} = getTextInfos(text? lines : [NOTE_EMPTY_MESSAGE], style.notes);
 
     notes.push({
@@ -137,15 +137,12 @@ function renderMultLineText(lines, x, y, lineHeight, style, toEdit) {
     canva.ctx.beginPath();
     setFontStyle(style);
 
-    console.log('multile render', toEdit)
-
     let cy = y;
     for(lineKey in lines) {
         let line = lines[lineKey]
         canva.ctx.fillText(line, x, cy);
         if(toEdit?.line_key == lineKey) {
             let {width} = canva.ctx.measureText(line.slice(0, toEdit.caracter_key))
-            console.log(line.slice(0, toEdit.caracter_key), width)
 
             canva.ctx.fillStyle = 'red';
             canva.ctx.fillRect(x + width, cy - lineHeight + (lineHeight*.1), 2, lineHeight);
@@ -491,39 +488,58 @@ function updateTextByKeydownEvent(lines, keydownEvent, edit) {
     let text_part = lines[edit.line_key].slice(0, edit.caracter_key)
     let text_end = lines[edit.line_key].slice(edit.caracter_key)
 
-
+    console.log(text_part, text_end, edit.line_key, edit.caracter_key);
+    
     if (keydownEvent.key === 'Backspace') {
         if(text_part.length == 0) {
-            let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
+            let {line, caracter } = computLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
             edit.line_key = line
             edit.caracter_key = caracter
+            
+            text_part = lines[edit.line_key]
+            if (lines.length > 1) {
+                lines.splice(edit.line_key, 1);
+            }
+        }else {
+            edit.caracter_key--;
+            text_part = text_part.slice(0, -1);
         }
 
-        newText = newText.slice(0, -1);   
+        lines[edit.line_key] = text_part+text_end;
     } else if (keydownEvent.key === 'Enter') {
-        newText += '\n';
+        lines.splice(edit.line_key + 1, 0, text_end);
+        text_part=text_end
+        text_end = '';
         edit.line_key++
+        edit.caracter_key = 0;
     } else if (keydownEvent.key.length === 1) {
-        newText += keydownEvent.key;
+        text_part += keydownEvent.key;
         edit.caracter_key ++
+        lines[edit.line_key] = text_part+text_end;
     }
     if (keydownEvent.key === 'ArrowLeft') {
-        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
+        let {line, caracter } =  computLinePosition(lines, edit.line_key, edit.caracter_key, 0, -1)
         edit.line_key = line
         edit.caracter_key = caracter
     } else if (keydownEvent.key === 'ArrowRight') {
-        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 0, 1)
+        let {line, caracter } =  computLinePosition(lines, edit.line_key, edit.caracter_key, 0, 1)
         edit.line_key = line
         edit.caracter_key = caracter
     } else if (keydownEvent.key === 'ArrowUp') {
-        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, -1, 0)
+        let {line, caracter } =  computLinePosition(lines, edit.line_key, edit.caracter_key, -1, 0)
         edit.line_key = line
         edit.caracter_key = caracter
     } else if (keydownEvent.key === 'ArrowDown') {
-        let {line, caracter } =  getLinePosition(lines, edit.line_key, edit.caracter_key, 1, 0)
+        let {line, caracter } =  computLinePosition(lines, edit.line_key, edit.caracter_key, 1, 0)
         edit.line_key = line
         edit.caracter_key = caracter
     }
+
+
+    console.log(text_part, text_end, edit.line_key, edit.caracter_key);
+
+
+    console.log(lines);
 
     return {lines, edit};
 }
@@ -772,11 +788,10 @@ function runControle() {
 
 function setToEditNote(key) {
     let note = notes[key]
-    let lines = note.text.split('\n')
     controle.noteToEdit = {
         key,
-        caracter_key: lines[lines.length-1].length,
-        line_key: lines.length-1
+        caracter_key: note.lines[note.lines.length-1].length,
+        line_key: note.lines.length-1
     }
 
     console.log(controle.noteToEdit)
