@@ -27,6 +27,9 @@ const TIPO_NOTE = 'NOTE'
 // configurações de notas
 const NOTE_EMPTY_MESSAGE = 'Digite aqui...'
 
+// menus
+const MENU_TYPE = 'geral';
+
 
 // estilos
 DEFAULT_FONT_FAMILY = 'Arial';
@@ -39,7 +42,17 @@ const style = {
         fontSize: DEFAULT_FONT_SIZE,
         fontColor: DEFAULT_FONT_COLOR,
         margem: 4
+    },
+    menu: {
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontSize: 18,
+        fontColor: DEFAULT_FONT_COLOR,
+        margem: 4
     }
+}
+
+const contextMenu = {
+    x: 0, y: 0, w: 0, h: 0, options: {}
 }
 
 const arrowDistance = 3;
@@ -55,9 +68,11 @@ const controle = {
     },
     
     mouse: {
-        x: 0, y: 0, btn0: false, btn2: false, doubleClick: false
+        x: 300, y: 300, btn0: false, btn2: false, doubleClick: false
     },
 }
+
+
 const renderConfig = {
     scala: INITIAL_ZOOM_POSITION,
 }
@@ -68,7 +83,8 @@ const renderConfig = {
 
 let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dol\nor';
 init();
-addNote(noteTextTest, -100, -30)
+// addNote(noteTextTest, -100, -30)
+createMenu();
 render();
 
 function render() {
@@ -78,6 +94,18 @@ function render() {
     renderDots();
     renderNotes();
     renderSelectionArea()
+    renderContextMenu()
+}
+
+function renderContextMenu() {
+    drawRetangle(contextMenu)
+    renderMultLineText(
+        contextMenu.optionsTitle,
+        contextMenu.x,
+        contextMenu.y,
+        contextMenu.lineHeight,
+        style.menu
+    )
 }
 
 function renderNotes() {
@@ -471,9 +499,10 @@ function editNoteText(keydownEvent) {
     note.lines = lines;
     controle.noteToEdit = edit;
 
-    // console.log(1, controle.noteToEdit);
+    let hasContent = ((note.lines.length + note.lines[0].length) > 1);
+
+    let { w, h } = getTextInfos(hasContent? note.lines : [NOTE_EMPTY_MESSAGE], style.notes);
     
-    let { w, h } = getTextInfos(note.lines.length + note.lines[0].length == 1? note.lines : [NOTE_EMPTY_MESSAGE], style.notes);
     note.lines = lines;
     note.w = w + style.notes.margem * 2;
     note.h = h + style.notes.margem * 2;
@@ -534,12 +563,6 @@ function updateTextByKeydownEvent(lines, keydownEvent, edit) {
         edit.line_key = line
         edit.caracter_key = caracter
     }
-
-
-    console.log(text_part, text_end, edit.line_key, edit.caracter_key);
-
-
-    console.log(lines);
 
     return {lines, edit};
 }
@@ -777,8 +800,7 @@ function runControle() {
         moveTela();
     }
     else if (controle.mouse.btn2 && !controle.mouse.isMove) {
-        // TODO: tem que validar o tempo do click.
-        console.log('show menu')
+        createMenu()
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.selectedItens) {
         moveSelectionArea();
@@ -1022,4 +1044,45 @@ function setCanva() {
     canva.el = document.getElementById('app')
     canva.ctx = canva.el.getContext("2d")
     setCanvaSize()
+}
+
+function createMenu() {
+    const type = MENU_TYPE;
+
+    switch(type) {
+        case MENU_TYPE:
+            setMenuGeral()
+            break;
+    }
+}
+
+function setMenuGeral() {
+    setMenu({add_note: 'Adicionar Nota', test: 'Test'});
+}
+
+function setMenu(options) {
+    let optionsTitle = Object.values(options);
+    setFontStyle(style.menu, style.menu.fontSize)
+    let {w, h} = getTextInfos(optionsTitle, style.menu);
+
+    let cx = controle.mouse.x+style.menu.margem
+    let cy = controle.mouse.y+style.menu.margem
+    let lineHeight = h/optionsTitle.length;
+    
+    let  menuOptions = []
+    for (option in options) {
+        menuOptions.push({
+            x: cx, y: cy, w, lineHeight, name: option, title: options[option]
+        })
+
+        cy += lineHeight+style.menu.margem
+    }
+    
+    contextMenu.x = controle.mouse.x
+    contextMenu.y = controle.mouse.y
+    contextMenu.w = w+style.menu.margem*2,
+    contextMenu.h = h+style.menu.margem * (1 + optionsTitle.length)
+    contextMenu.options = menuOptions
+    contextMenu.optionsTitle = optionsTitle
+    contextMenu.lineHeight = lineHeight
 }
