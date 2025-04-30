@@ -8,13 +8,13 @@ const MAX_SCALE = 4;
 
 const canva = {}
 const dots = [
-    // {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    // {x: -150, y: 250, r: DOT_RADIUS},
-    // {x: 150, y: 250, r: DOT_RADIUS},
+    {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
+    {x: -150, y: 250, r: DOT_RADIUS},
+    {x: 150, y: 250, r: DOT_RADIUS},
 ]
 const connections = [
-    // { d1: 0, d2: 1, description: 'Pai' },
-    // { d1: 0, d2: 2, description: 'Tio' },
+    { d1: 0, d2: 1, description: 'Pai' },
+    { d1: 0, d2: 2, description: 'Tio' },
 ]
 const notes = []
 
@@ -83,8 +83,8 @@ const renderConfig = {
 
 let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dol\nor';
 init();
-// addNote(noteTextTest, -100, -30)
-createMenu();
+addNote(noteTextTest, -100, -30)
+// createMenu();
 render();
 
 function render() {
@@ -94,7 +94,7 @@ function render() {
     renderDots();
     renderNotes();
     renderSelectionArea()
-    renderContextMenu()
+    // renderContextMenu()
 }
 
 function renderContextMenu() {
@@ -803,7 +803,7 @@ function runControle() {
         moveTela();
     }
     else if (controle.mouse.btn2 && !controle.mouse.isMove) {
-        createMenu()
+        // createMenu()
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.selectedItens) {
         moveSelectionArea();
