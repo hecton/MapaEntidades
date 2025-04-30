@@ -8,13 +8,13 @@ const MAX_SCALE = 4;
 
 const canva = {}
 const dots = [
-    {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
-    {x: -150, y: 250, r: DOT_RADIUS},
-    {x: 150, y: 250, r: DOT_RADIUS},
+    // {x: 0, y: 0, r: DOT_RADIUS, text: 'Hecton Aparecido Gonçalves'},
+    // {x: -150, y: 250, r: DOT_RADIUS},
+    // {x: 150, y: 250, r: DOT_RADIUS},
 ]
 const connections = [
-    { d1: 0, d2: 1, description: 'Pai' },
-    { d1: 0, d2: 2, description: 'Tio' },
+    // { d1: 0, d2: 1, description: 'Pai' },
+    // { d1: 0, d2: 2, description: 'Tio' },
 ]
 const notes = []
 
@@ -52,6 +52,7 @@ const style = {
 }
 
 const contextMenu = {
+    show: false,
     x: 0, y: 0, w: 0, h: 0, options: {}
 }
 
@@ -68,7 +69,17 @@ const controle = {
     },
     
     mouse: {
-        x: 300, y: 300, btn0: false, btn2: false, doubleClick: false
+        x: 300, y: 300, 
+        btn0: false,
+        timeLastClickDown0: new Date().getTime(),
+        timeLastClickUp0: new Date().getTime(),
+        doubleClick0: false,
+        isFastClick0: false,
+        btn2: false,
+        timeLastClickDown2: new Date().getTime(),
+        timeLastClickUp2: new Date().getTime(),
+        doubleClick2: false,
+        isFastClick2: false,
     },
 }
 
@@ -83,23 +94,24 @@ const renderConfig = {
 
 let noteTextTest = 'Lorem ipsum dolor sit amet,\n consectetur adipiscing elit. Aenean accumsan dui dol\nor';
 init();
-addNote(noteTextTest, -100, -30)
-// createMenu();
+// addNote(noteTextTest, -100, -30)
+createMenu();
 render();
 
 function render() {
-    updateRenderConfig()
     clearCanva()
+    renderContextMenu()
+    updateRenderConfig()
     renderConnections()
     renderDots();
     renderNotes();
     renderSelectionArea()
-    // renderContextMenu()
 }
 
 function renderContextMenu() {
+    if(!contextMenu.show) return;
+
     drawRetangle(contextMenu)
-    setFontStyle(style.menu, style.menu.fontSize)
     
     for(option of contextMenu.options) {
         renderMenuOption(option)
@@ -108,7 +120,11 @@ function renderContextMenu() {
 
 function renderMenuOption(option) {
     drawRetangle(option)
+
+    setFontStyle(style.menu, style.menu.fontSize)
+    canva.ctx.beginPath()
     canva.ctx.fillText(option.title, option.tx, option.ty )
+    canva.ctx.closePath()
 }
 
 function renderNotes() {
@@ -198,6 +214,7 @@ function drawRetangle(retangle, color) {
     canva.ctx.fillRect(retangle.x, retangle.y, retangle.w, retangle.h); // Draw the rectangle
     canva.ctx.strokeStyle = 'black'; // Set the stroke color to black
     canva.ctx.strokeRect(retangle.x, retangle.y, retangle.w, retangle.h); // Draw the rectangle outline
+    canva.ctx.closePath()
 }
 
 function getRetangleInTela(retangle)
@@ -459,26 +476,44 @@ function setEventListeners() {
     window.addEventListener('mousemove', (e) => {
         mouseUpdate({x: e.clientX, y: e.clientY})
     })
-    let timeClick = new Date().getTime()
     canva.el.addEventListener('mousedown', (e) => { 
-        let index = `btn${e.button}`
-
         let currentTime = new Date().getTime()
         let doubleClick = false;
+        let diffClick = currentTime - controle.mouse[`timeLastClickDown${e.button}`]
         
-        if (currentTime - timeClick < 300) {
+        if (diffClick < 300) {
             doubleClick = true
         }
+        console.log(e.button, 'diffClick', diffClick);
 
-        timeClick = currentTime;
-        mouseUpdate({[index]: true, doubleClick})
+        mouseUpdate({
+            [`btn${e.button}`]: true,
+            [`timeLastClickDown${e.button}`]: currentTime,
+            [`doubleClick${e.button}`]: doubleClick,
+            show: true
+        })
     })
     canva.el.addEventListener('contextmenu', (e) => {
         e.preventDefault()
     });
     canva.el.addEventListener('mouseup', (e) => {
-        let index = `btn${e.button}`
-        mouseUpdate({[index]: false, doubleClick: false})
+        let currentTime = new Date().getTime()
+        let diffClicked = currentTime - controle.mouse[`timeLastClickDown${e.button}`]
+        let isFast = false;
+        
+        console.log(e.button, 'diffClicked', diffClicked);
+
+        if (diffClicked < 300) {
+            isFast = true;
+            console.log('aqui');
+        }
+        
+        mouseUpdate({
+            [`btn${e.button}`]: false,
+            [`timeLastClickUp${e.button}`]: currentTime,
+            [`isFastClick${e.button}`]: isFast,
+            show: true
+        })
     })
     canva.el.addEventListener('mouseleave', (e) => {
         mouseUpdate({btn0: false, btn2: false, doubleClick: false})
@@ -659,7 +694,10 @@ function mouseUpdate(updateData) {
             setSelectedItens();
         }
     }
-    else if (controle.mouse.btn0) {// TODO: adicionar click rapido.
+    else if (controle.mouse.btn0 && controle.mouse.isFastClick0 && checkMenuColision()) {// TODO: adicionar click rapido.
+        runMenu()
+    } else if (controle.mouse.btn0 && !controle.mouse.isMove) {// TODO: adicionar click rapido.
+        contextMenu.show = false;
         controle.noteToEdit = null;
         setClickedEntity()
 
@@ -687,7 +725,39 @@ function mouseUpdate(updateData) {
         y: controle.mouse.y - controle.mouse.old.y
     }
 
+    // if(updateData.show) {
+    //     console.log(controle.mouse, updateData)
+    // }
+
     runControle();
+}
+
+function runMenu() {
+    contextMenu.show = false;
+    let option = getMenuOption()
+    if(!option) {
+        return;
+    }
+    
+    switch(option.name) {
+        case 'add_note':
+        	let {x, y} = getMapaPosition(controle.mouse.x, controle.mouse.y)
+            addNote('', x, y)
+            break;
+    }
+
+}
+
+function getMenuOption() {
+    for (option of contextMenu.options) {
+        if(checkOptionColision(option)) {
+            return option;
+        }
+    }
+}
+
+function checkOptionColision(option) {
+    return checkPointRentangleColision(controle.mouse.x, controle.mouse.y, option.x, option.y, option.w, option.h)
 }
 
 function setClickedEntity() {
@@ -789,7 +859,7 @@ function getSelectedItem() {
 function runControle() {
     // duplo click com um item selecionado
     let size = controle.selectedItens?.size;
-    if(controle.mouse.doubleClick && size == 1 && !controle.mouse.clickMove) {
+    if(controle.mouse.doubleClick0 && size == 1 && !controle.mouse.clickMove) {
         let item = getSelectedItem();
 
         if(item.type === TIPO_DOT) {
@@ -802,8 +872,8 @@ function runControle() {
     else if (controle.mouse.btn2 && controle.mouse.clickMove) {
         moveTela();
     }
-    else if (controle.mouse.btn2 && !controle.mouse.isMove) {
-        // createMenu()
+    else if (!controle.mouse.btn2 && !controle.mouse.isMove && controle.mouse.isFastClick2) {
+        createMenu()
     }
     else if (controle.mouse.btn0 && controle.mouse.clickMove && controle.selectedItens) {
         moveSelectionArea();
@@ -962,6 +1032,13 @@ function moveTela() {
     controle.tela.y += controle.mouse.diff.y
 }
 
+function checkMenuColision() {
+    return (
+        contextMenu.show &&
+        checkPointRentangleColision(controle.mouse.x, controle.mouse.y, contextMenu.x, contextMenu.y, contextMenu.w, contextMenu.y)
+    );
+}
+
 function getEntidadeInPosition(x, y) {
     let dot = getDotByPosition(x, y);
     if(dot) return {dot}
@@ -1091,4 +1168,5 @@ function setMenu(options) {
     contextMenu.options = menuOptions
     contextMenu.optionsTitle = optionsTitle
     contextMenu.lineHeight = lineHeight
+    contextMenu.show = true;
 }
