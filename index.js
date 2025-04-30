@@ -99,13 +99,16 @@ function render() {
 
 function renderContextMenu() {
     drawRetangle(contextMenu)
-    renderMultLineText(
-        contextMenu.optionsTitle,
-        contextMenu.x,
-        contextMenu.y,
-        contextMenu.lineHeight,
-        style.menu
-    )
+    setFontStyle(style.menu, style.menu.fontSize)
+    
+    for(option of contextMenu.options) {
+        renderMenuOption(option)
+    }
+}
+
+function renderMenuOption(option) {
+    drawRetangle(option)
+    canva.ctx.fillText(option.title, option.tx, option.ty )
 }
 
 function renderNotes() {
@@ -132,7 +135,7 @@ function getTextInfos(lines, style)
 {
     let w = 0;
     let h = style.fontSize*lines.length;
-
+    
     canva.ctx.font = `${style.fontSize}px ${style.fontFamily}`;
     for(line of lines) {
         let metrics = canva.ctx.measureText(line);
@@ -161,9 +164,9 @@ function renderNote(note, edit = false) {
     );
 }
 
-function renderMultLineText(lines, x, y, lineHeight, style, toEdit) {
+function renderMultLineText(lines, x, y, lineHeight, style, toEdit , fontSize) {
     canva.ctx.beginPath();
-    setFontStyle(style);
+    setFontStyle(style, fontSize);
 
     let cy = y;
     for(lineKey in lines) {
@@ -1064,24 +1067,27 @@ function setMenu(options) {
     let optionsTitle = Object.values(options);
     setFontStyle(style.menu, style.menu.fontSize)
     let {w, h} = getTextInfos(optionsTitle, style.menu);
+    let {margem}  = style.menu
 
-    let cx = controle.mouse.x+style.menu.margem
-    let cy = controle.mouse.y+style.menu.margem
+    let cx = controle.mouse.x+margem
+    let cy = controle.mouse.y+margem
     let lineHeight = h/optionsTitle.length;
     
     let  menuOptions = []
     for (option in options) {
         menuOptions.push({
-            x: cx, y: cy, w, lineHeight, name: option, title: options[option]
+            x: cx,y: cy, w: w+margem*2, h: lineHeight + margem*2,
+            tx: cx+margem, ty: cy+lineHeight+margem,
+            name: option, title: options[option]
         })
 
-        cy += lineHeight+style.menu.margem
+        cy += lineHeight+margem*3
     }
     
     contextMenu.x = controle.mouse.x
     contextMenu.y = controle.mouse.y
-    contextMenu.w = w+style.menu.margem*2,
-    contextMenu.h = h+style.menu.margem * (1 + optionsTitle.length)
+    contextMenu.w = w+margem*4,
+    contextMenu.h = h+margem*( 4 + optionsTitle.length+1)
     contextMenu.options = menuOptions
     contextMenu.optionsTitle = optionsTitle
     contextMenu.lineHeight = lineHeight
